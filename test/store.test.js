@@ -1,0 +1,94 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { advance, begin, current, emptyState, exit, isBrowsing, position, pushEntry, retreat } from '../src/client/store.js';
+
+test('empty history: begin is a no-op', () => {
+  const s = begin(emptyState(), 'draft');
+  assert.equal(isBrowsing(s), false);
+  assert.equal(current(s), null);
+});
+
+test('push then browse: ↑ recalls the newest sent input', () => {
+  let s = pushEntry(emptyState(), 'first message', 1);
+  s = pushEntry(s, 'second message', 2);
+  s = begin(s, '');
+  assert.equal(current(s), 'second message');
+  s = advance(s);
+  assert.equal(current(s), 'first message');
+  // oldest: further ↑ stays put
+  s = advance(s);
+  assert.equal(current(s), 'first message');
+});
+
+test('consecutive duplicates collapse into one entry', () => {
+  let s = pushEntry(emptyState(), 'same text', 1);
+  s = pushEntry(s, 'same text', 2);
+  assert.equal(s.entries.length, 1);
+});
+
+test('empty text is never recorded', () => {
+  const s = pushEntry(emptyState(), '   ', 1);
+  assert.equal(s.entries.length, 0);
+  const s2 = pushEntry(emptyState(), '', 1);
+  assert.equal(s2.entries.length, 0);
+});
+
+test('↓ past the newest restores the pre-browsing snapshot', () => {
+  let s = pushEntry(emptyState(), 'sent text', 1);
+  s = begin(s, 'my draft in progress');
+  const { state, restore } = retreat(s);
+  assert.equal(isBrowsing(state), false);
+  assert.equal(restore, 'my draft in progress');
+});
+
+test('↓ inside history walks back toward the newest', () => {
+  let s = pushEntry(emptyState(), 'older', 1);
+  s = pushEntry(s, 'newer', 2);
+  s = begin(s, '');
+  s = advance(s);
+  assert.equal(current(s), 'older');
+  const stepped = retreat(s);
+  assert.equal(current(stepped.state), 'newer');
+  assert.equal(stepped.restore, null);
+});
+
+test('Esc exits browsing and restores the snapshot', () => {
+  let s = pushEntry(emptyState(), 'sent', 1);
+  s = begin(s, 'original');
+  s = advance(s);
+  const { state, restore } = exit(s, true);
+  assert.equal(isBrowsing(state), false);
+  assert.equal(restore, 'original');
+});
+
+test('typing while browsing exits without restore (keeps recalled text)', () => {
+  let s = pushEntry(emptyState(), 'sent', 1);
+  s = begin(s, 'original');
+  const { state, restore } = exit(s, false);
+  assert.equal(isBrowsing(state), false);
+  assert.equal(restore, null);
+});
+
+test('entry cap: at most 100 entries are kept', () => {
+  let s = emptyState();
+  for (let i = 0; i < 150; i++) s = pushEntry(s, `msg ${i}`, i);
+  assert.equal(s.entries.length, 100);
+  assert.equal(s.entries[0].text, 'msg 149');
+});
+
+test('begin while already browsing does not overwrite the snapshot', () => {
+  let s = pushEntry(emptyState(), 'sent', 1);
+  s = begin(s, 'keep me');
+  const again = begin(s, 'other');
+  assert.equal(again, s);
+});
+
+test('position reports 1-based index and count while browsing', () => {
+  let s = pushEntry(emptyState(), 'a', 1);
+  s = pushEntry(s, 'b', 2);
+  s = begin(s, '');
+  assert.deepEqual(position(s), { index: 1, count: 2 });
+  s = advance(s);
+  assert.deepEqual(position(s), { index: 2, count: 2 });
+  assert.equal(position(emptyState()), null);
+});

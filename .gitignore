@@ -1,0 +1,20 @@
+# 依赖
+node_modules/
+
+# 构建可再生产物（lib/ 由 npm publish / prepublishOnly 自动生成）
+# 注意：如果用户用 file:/github 方式安装（不经 npm 构建流程），需要保留 lib/，
+# 此仓库选择保留 lib/，请勿删除
+# lib/
+
+# 日志与系统文件
+*.log
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.vscode/
+.idea/
+
+# 临时文件
+*.tgz
+.npmrc

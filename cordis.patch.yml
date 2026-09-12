@@ -1,0 +1,4 @@
+# dsh-plugin-input-history bundle patch: inserts this plugin into a profile's layer stack.
+- insert:
+    - id: input-history
+      name: 'dsh-plugin-input-history'
