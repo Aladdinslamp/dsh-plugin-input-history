@@ -1,11 +1,18 @@
 # dsh-plugin-input-history
 
+[![npm](https://img.shields.io/npm/v/dsh-plugin-input-history)](https://www.npmjs.com/package/dsh-plugin-input-history)
+
 为 DSH Web 对话区输入框添加「终端式历史输入」：按 **↑** 调出上一条发送过的消息，**↓** 往回翻，**Esc** 放弃并恢复原稿。
 
 - 详细设计文档（架构、状态机、守卫规则、测试方案，含 PlantUML 图）：[`docs/design.md`](docs/design.md)
 - 状态：v0.1.0 已实现并实测通过，核心逻辑 20 项单元测试全部通过
 
 ## 更新记录
+
+### v0.1.1（2026-09-12）
+
+- 已发布到 npm，支持 `dsh plugin --profile web add dsh-plugin-input-history` 一键安装；
+- README 增补 npm / GitHub 双通道安装说明。
 
 ### v0.1.0（2026-09-12）
 
@@ -41,12 +48,44 @@
 
 ## 安装
 
+### 从 npm 安装（推荐）
+
+已发布到 npm，任何 DSH 用户一条命令安装：
+
+```sh
+dsh plugin --profile web add dsh-plugin-input-history
+
+# 或固定版本
+dsh plugin --profile web add dsh-plugin-input-history@0.1.0
+```
+
+CLI 会自动下载依赖、挂载 bundle，下次 `dsh web` 启动即生效。卸载：
+
+```sh
+dsh plugin --profile web remove dsh-plugin-input-history
+```
+
+### 从 GitHub 安装
+
+```sh
+dsh plugin --profile web add github:Aladdinslamp/dsh-plugin-input-history
+
+# 固定到某个 tag
+dsh plugin --profile web add github:Aladdinslamp/dsh-plugin-input-history#v0.1.0
+```
+
+### 从本地目录安装（开发者）
+
+```sh
+dsh plugin --profile web add file:<本仓库路径>
+```
+
 ### 前置要求
 
-- 已构建的 DSH（本插件基于 DSH 的 cordis 客户端插件体系，浏览器 bundle 需 `lib/client.js` 存在——本仓库已随源码构建好）；
-- Node.js ≥ 18（构建/测试用）。
+- 已构建的 DSH（本插件基于 DSH 的 cordis 客户端插件体系）；
+- 从源码构建时需要 Node.js ≥ 18。
 
-### 1. 构建（可选，仓库已含构建产物）
+### 开发者：自己构建
 
 ```sh
 npm install
@@ -54,24 +93,11 @@ npm run build     # 产出 lib/client.js（DSH 客户端模块格式）与 lib/i
 npm test          # 运行 20 项核心逻辑单元测试
 ```
 
-### 2. 装进 web profile
-
-```sh
-# 把包装进 web profile（内部转发给 pnpm 安装到 $DSH_HOME/profiles/web/node_modules）
-dsh plugin --profile web add file:<本仓库路径>
-```
-
-然后在 profile 的 `$DSH_HOME/profiles/web/cordis.patch.yml` 中确认插件处于启用状态（若 Loader 未自动激活）。可随时用以下命令核对配置树中是否出现本包：
-
-```sh
-dsh --profile web --dump-config
-```
-
-### 3. 验证挂载
+### 验证挂载
 
 启动 `dsh web` 后，三个信号说明插件已被正确加载：
 
-1. `--dump-config` 输出里能看到 `dsh-plugin-input-history`；
+1. `dsh --profile web --dump-config` 输出里能看到 `dsh-plugin-input-history`；
 2. 浏览器 DevTools → Network 里出现 `/plugins` 下本包的 bundle 请求；
 3. Console 无插件激活报错。
 
