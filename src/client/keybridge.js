@@ -88,9 +88,13 @@ export class KeyBridge {
       };
       const decision = isBrowsing(state) || shouldInterceptArrowUp(guard);
       if (decision) {
-        const entered = isBrowsing(state) ? state : begin(state, input.draft);
-        if (!isBrowsing(state) && entered === state) return; // nothing to browse
-        const next = advance(entered);
+        let next = state;
+        if (isBrowsing(state)) {
+          next = advance(state); // already browsing: step one entry older
+        } else {
+          next = begin(state, input.draft); // first ↑ shows the newest entry (1/n)
+          if (next === state) return; // nothing to browse
+        }
         const text = current(next);
         if (text === null) return;
         event.preventDefault();
