@@ -10,34 +10,15 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { emptyState, isBrowsing, position, pushEntry } from './store.js';
+import { loadSessionHistory, saveSessionHistory } from './sessionCtx.js';
+import { pullShared, pushShared } from './sync.js';
+import { mergeEntries } from './store.js';
 import { KeyBridge } from './keybridge.js';
+import { TouchBridge, isTouchDevice } from './touch.js';
 import type { HistoryDockProps, InputState } from './types.js';
 
-const CAP = 100;
-
-function storageKey(sessionId: string): string {
-  return `dsh-input-history:${sessionId}`;
-}
-
 function loadPersisted(sessionId: string): ReturnType<typeof emptyState> {
-  try {
-    const raw = globalThis.localStorage?.getItem(storageKey(sessionId));
-    if (raw) {
-      const entries = JSON.parse(raw) as unknown;
-      if (Array.isArray(entries)) return { entries, cursor: -1, snapshot: null };
-    }
-  } catch {
-    /* corrupted cache — start empty */
-  }
-  return emptyState();
-}
-
-function persist(sessionId: string, entries: readonly unknown[]): void {
-  try {
-    globalThis.localStorage?.setItem(storageKey(sessionId), JSON.stringify(entries));
-  } catch {
-    /* storage full or unavailable — history stays in memory only */
-  }
+  return { entries: loadSessionHistory(sessionId), cursor: -1, snapshot: null };
 }
 
 export function HistoryDock(props: HistoryDockProps) {
@@ -69,6 +50,19 @@ export function HistoryDock(props: HistoryDockProps) {
     pendingRef.current = null;
     gestureRef.current = null;
     lastNonEmptyRef.current = '';
+    // Cross-device sync: merge the shared session-workspace stack into the
+    // local one (union by text, newer seq wins). Local stays authoritative
+    // until the pull lands; pull failures leave everything untouched.
+    let alive = true;
+    pullShared(sessionId).then((remoteEntries) => {
+      if (!alive || !remoteEntries || remoteEntries.length === 0) return;
+      setStore((s) => {
+        const next = mergeEntries(s, remoteEntries);
+        if (next !== s) saveSessionHistory(sessionId, next.entries);
+        return next;
+      });
+    }).catch(() => { /* service unavailable — local-only mode */ });
+    return () => { alive = false; };
   }, [sessionId]);
 
   // Capture submit gestures: plain Enter inside the composer, or a
@@ -118,7 +112,8 @@ export function HistoryDock(props: HistoryDockProps) {
       if (viaGesture || viaPhase) {
         setStore((s) => {
           const next = pushEntry(s, captured, Date.now());
-          persist(sessionId, next.entries);
+          saveSessionHistory(sessionId, next.entries);
+          pushShared(sessionId, next.entries); // fire-and-forget cross-device sync
           return next;
         });
       }
@@ -135,6 +130,17 @@ export function HistoryDock(props: HistoryDockProps) {
   actionsRef.current = inputActions;
   useEffect(() => {
     if (!inputActions) return;
+    // Touch devices have no arrow keys: swipes inside the composer replace ↑/↓.
+    const touch = isTouchDevice() ? new TouchBridge({
+      getInput: () => inputRef.current ?? { draft: '', draftRev: 0, phase: 'plain' },
+      getStore: () => storeRef.current,
+      setStore: (next: ReturnType<typeof emptyState>) => {
+        storeRef.current = next;
+        setStore(next);
+      },
+      setDraft: (text: string) => actionsRef.current?.setDraft(text),
+      onChange: () => setTick((t) => t + 1),
+    }) : null;
     const bridge = new KeyBridge({
       getInput: () => inputRef.current ?? { draft: '', draftRev: 0, phase: 'plain' },
       getStore: () => storeRef.current,
@@ -145,7 +151,10 @@ export function HistoryDock(props: HistoryDockProps) {
       setDraft: (text: string) => actionsRef.current?.setDraft(text),
       onChange: () => setTick((t) => t + 1),
     });
-    return () => bridge.dispose();
+    return () => {
+      bridge.dispose();
+      touch?.dispose();
+    };
   }, [sessionId, Boolean(inputActions)]);
 
   // The "history i/n" bubble while browsing (auto-fades via CSS animation).

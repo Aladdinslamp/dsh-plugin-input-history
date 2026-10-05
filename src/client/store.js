@@ -5,7 +5,7 @@
  * can be unit-tested directly with node:test. See docs/design.md §4.2.
  */
 
-export const MAX_ENTRIES = 100;
+export const MAX_ENTRIES = 10000;
 
 /**
  * @typedef {object} HistoryEntry
@@ -109,4 +109,25 @@ export function reset() {
 export function position(state) {
   if (!isBrowsing(state)) return null;
   return { index: state.cursor + 1, count: state.entries.length };
+}
+
+/**
+ * Union-merge incoming entries (e.g. pulled from the session workspace file
+ * on another device) into the local state: dedupe by text keeping the newer
+ * seq, order newest-first, cap at MAX_ENTRIES. Returns the same state object
+ * when nothing changes.
+ */
+export function mergeEntries(state, incoming) {
+  const byText = new Map();
+  let dirty = false;
+  for (const e of state.entries) byText.set(e.text, e);
+  for (const e of Array.isArray(incoming) ? incoming : []) {
+    if (!e || typeof e.text !== 'string' || e.text === '') continue;
+    const local = byText.get(e.text);
+    if (!local) { byText.set(e.text, e); dirty = true; }
+    else if ((e.seq ?? 0) > (local.seq ?? 0)) { byText.set(e.text, e); dirty = true; }
+  }
+  if (!dirty) return state;
+  const entries = [...byText.values()].sort((a, b) => (b.seq ?? 0) - (a.seq ?? 0)).slice(0, MAX_ENTRIES);
+  return { ...state, entries };
 }

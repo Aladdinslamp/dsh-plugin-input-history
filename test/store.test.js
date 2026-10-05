@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { advance, begin, current, emptyState, exit, isBrowsing, position, pushEntry, retreat } from '../src/client/store.js';
+import { advance, begin, current, emptyState, exit, isBrowsing, MAX_ENTRIES, mergeEntries, position, pushEntry, retreat } from '../src/client/store.js';
 
 test('empty history: begin is a no-op', () => {
   const s = begin(emptyState(), 'draft');
@@ -69,11 +69,12 @@ test('typing while browsing exits without restore (keeps recalled text)', () => 
   assert.equal(restore, null);
 });
 
-test('entry cap: at most 100 entries are kept', () => {
+test('entry cap: at most MAX_ENTRIES entries are kept (oldest overwritten)', () => {
   let s = emptyState();
-  for (let i = 0; i < 150; i++) s = pushEntry(s, `msg ${i}`, i);
-  assert.equal(s.entries.length, 100);
-  assert.equal(s.entries[0].text, 'msg 149');
+  for (let i = 0; i < MAX_ENTRIES + 5; i++) s = pushEntry(s, 'm' + i, i);
+  assert.equal(s.entries.length, MAX_ENTRIES);
+  assert.equal(s.entries[0].text, 'm' + (MAX_ENTRIES + 4)); // newest first
+  assert.equal(s.entries[MAX_ENTRIES - 1].text, 'm5'); // oldest kept: dropped 0-4
 });
 
 test('begin while already browsing does not overwrite the snapshot', () => {
@@ -91,4 +92,32 @@ test('position reports 1-based index and count while browsing', () => {
   s = advance(s);
   assert.deepEqual(position(s), { index: 2, count: 2 });
   assert.equal(position(emptyState()), null);
+});
+
+
+// ---- cross-device merge (store.mergeEntries) ----
+
+test('mergeEntries unions both sides, newer seq wins on text collisions', () => {
+  let s = pushEntry(emptyState(), 'shared', 10);
+  s = pushEntry(s, 'local-only', 12);
+  const merged = mergeEntries(s, [
+    { text: 'shared', seq: 11 },   // newer duplicate of a local entry
+    { text: 'remote-only', seq: 9 },
+  ]);
+  assert.deepEqual(merged.entries.map((e) => e.text), ['local-only', 'shared', 'remote-only']);
+  assert.equal(merged.entries.find((e) => e.text === 'shared').seq, 11);
+});
+
+test('mergeEntries with identical data returns the same state object', () => {
+  let s = pushEntry(emptyState(), 'a', 1);
+  assert.equal(mergeEntries(s, [{ text: 'a', seq: 1 }]), s);
+});
+
+test('mergeEntries caps at MAX_ENTRIES and tolerates junk input', () => {
+  let s = pushEntry(emptyState(), 'base', 1);
+  const incoming = [{ text: 'x', seq: 2 }, null, {}, { text: '' }];
+  for (let i = 0; i < MAX_ENTRIES + 2; i++) incoming.push({ text: 'n' + i, seq: 100 + i });
+  const merged = mergeEntries(s, incoming);
+  assert.equal(merged.entries.length, MAX_ENTRIES);
+  assert.equal(merged.entries[0].text, 'n' + (MAX_ENTRIES + 1));
 });
