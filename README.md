@@ -5,9 +5,17 @@
 为 DSH Web 对话区输入框添加「终端式历史输入」：按 **↑** 调出上一条发送过的消息，**↓** 往回翻，**Esc** 放弃并恢复原稿。
 
 - 详细设计文档（架构、状态机、守卫规则、测试方案，含 PlantUML 图）：[`docs/design.md`](docs/design.md)
-- 状态：v0.2.0 已实现并实测通过，核心逻辑 45 项单元测试全部通过
+- 状态：v0.4.0 已发布 npm 与 GitHub Release，66 项单元测试全部通过
 
 ## 更新记录
+
+### v0.4.0（2026-10-07）
+
+- **宿主半侧落盘（核心变更）**：共享历史文件 `.input-history.json` 真正写入 DSH 会话记录目录 `~/.dsh/sessions/<工作区slug>/session-<id>/`（与 `session.v4.jsonl.zstd` 同层），跟随会话、跨设备共享；
+- 宿主形态对齐官方插件：cordis function-plugin（`webServer` + `connection` 信任围栏），注册 `/input-history` 前缀路由（GET 读 / POST 写）。此前依赖的 `remote.workspaceFiles` remote 是**只读**的（官方安全模型），写盘必须发生在宿主进程内；
+- 客户端三层降级：宿主路由（读写）→ workspaceFiles 只读后备 → 仅本地 localStorage；
+- 安全护栏：sessionId 白名单（拒绝路径穿越）、请求体 2MB 上限、非法/空文本条目过滤、10000 条截断；
+- 测试 66 项：新增宿主存储用例（目录定位/读写往返/穿越拒绝/首写建目录），sync 测试改为可注入宿主传输层。
 
 ### v0.3.0（2026-10-05）
 
@@ -53,7 +61,7 @@
 
 - 记录机制：**提交手势**（输入框内按 Enter、或点击发送按钮）时快照草稿，**3 秒内草稿被清空**（发送成功）才入栈——发送失败（草稿被自动恢复）不会进历史；
 - 连续发送相同文字只占一个历史位；
-- 每个会话独立历史栈，最多 100 条，并持久化到浏览器 `localStorage`（刷新页面不丢）；
+- 每个会话独立历史栈，最多 10000 条（超出覆盖最旧）；双写浏览器 `localStorage`（本机秒取）与会话目录 `.input-history.json`（跨设备共享）。
 - 翻历史时附件保持原样，`setDraft` 只替换文字。
 
 ## 安装
@@ -143,7 +151,7 @@ npm test          # 运行 20 项核心逻辑单元测试
 dsh plugin --profile web remove dsh-plugin-input-history
 ```
 
-零残留：不写任何宿主数据，浏览器侧历史在 `localStorage` 的 `dsh-input-history:<sessionId>` 键下，可随手清除。
+清理：v0.4.0 起历史落盘在 `~/.dsh/sessions/<工作区slug>/session-<id>/.input-history.json`（随会话目录删除即清）；浏览器侧缓存在 `localStorage` 的 `dsh-input-history:ctx:<sessionId>` 键下，可随手清除。
 
 ## 实测排错（踩过的坑）
 
