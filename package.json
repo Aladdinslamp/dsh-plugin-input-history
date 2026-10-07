@@ -1,7 +1,7 @@
 {
   "name": "dsh-plugin-input-history",
   "description": "Recall previously sent inputs in the DSH web composer with the Up/Down arrow keys, like a terminal history",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "license": "MIT",
   "repository": {
