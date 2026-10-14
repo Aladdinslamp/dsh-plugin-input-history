@@ -83,7 +83,7 @@ test('sync: pushShared writes capped JSON body through the host route', async ()
   setHostTransport(null);
 });
 
-test('sync: pushShared 截到一百条再上线（2026-10-14 设计稿 §185 对齐；2146 条事故回归）', async () => {
+test('sync: pushShared 截到五百条再上线（2026-10-14 用户定数 500；2146 条事故回归）', async () => {
   const log = [];
   setHostTransport(fakeHost({ file: null }, log));
   const big = []; // 真实调用方语义：最新在前
@@ -91,7 +91,7 @@ test('sync: pushShared 截到一百条再上线（2026-10-14 设计稿 §185 对
   pushShared('sess-cap', big);
   await new Promise((r) => setTimeout(r, 0));
   const body = JSON.parse(log[0][2]);
-  assert.equal(body.length, 100, '线上即一百条');
+  assert.equal(body.length, 500, '线上即五百条');
   assert.equal(body[0].text, 'msg2145', '最新在前');
   setHostTransport(null);
 });

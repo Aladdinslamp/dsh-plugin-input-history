@@ -5,7 +5,7 @@
  * can be unit-tested directly with node:test. See docs/design.md §4.2.
  */
 
-export const MAX_ENTRIES = 100; // 设计稿 §185：每会话最多 100 条，超出丢最旧（2026-10-14 用户实测 2000+ 条，实现漂移到 10000，回正）
+export const MAX_ENTRIES = 500; // 每会话上限 500 条，超出丢最旧（2026-10-14 用户定数：100 不够用，500 合适；此前漂移到 10000 致长会话堆 2000+）
 
 /**
  * @typedef {object} HistoryEntry

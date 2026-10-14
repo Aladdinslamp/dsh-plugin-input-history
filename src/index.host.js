@@ -79,7 +79,7 @@ export async function writeSharedHistory(sessionsRoot, sessionId, entries) {
     ? entries.filter((e) => e && typeof e.text === 'string' && e.text.trim().length > 0)
     : [];
   await mkdir(dirname(p), { recursive: true });
-  await writeFile(p, JSON.stringify(list.slice(0, 100)), 'utf8'); // 设计稿 §185：宿主写盘兜底截到 100——旧客户端推大栈也被拦在这里
+  await writeFile(p, JSON.stringify(list.slice(0, 500)), 'utf8'); // 宿主写盘兜底截到 500——旧客户端推大栈也被拦在这里
 }
 
 /** 统一响应：headersSent 之后绝不再写头。 */
@@ -93,7 +93,7 @@ function respondOf(res) {
   };
 }
 
-/** 读完整请求体（上限 2MB；历史最多 100 条远小于此）。 */
+/** 读完整请求体（上限 2MB；历史最多 500 条远小于此）。 */
 function readBody(req, limit = 2 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let size = 0;

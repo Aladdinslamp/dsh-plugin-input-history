@@ -103,7 +103,7 @@ api --> log : 读文件
 
 我们**不自己发明存储**，直接以会话日志里的 user 消息为准：
 
-- 插件在会话打开时，通过 `session` 远程接口把本会话已有的 user 消息分页拉进 `HistoryStore`（新→旧排序，去重，最多保留 100 条）。
+- 插件在会话打开时，通过 `session` 远程接口把本会话已有的 user 消息分页拉进 `HistoryStore`（新→旧排序，去重，最多保留 500 条）。
 - 运行中：监听 `useInput` 的 `phase`——当一次提交从 `submitting` 回到 `plain`（即发送尘埃落定），把刚才发送的文字（从 transcript 投影读到的 durable user 消息）追加进栈。这样"发送失败的消息"不会进历史，和终端行为一致。
 
 **动作 B：回填（怎么把文字放回输入框）**
@@ -182,7 +182,7 @@ interface HistoryState {
 规则：
 
 - **去重**：相同 `seq` 只收一次；相同 `text` 的连续条目合并（终端习惯：连续敲两次同一条命令，↑ 一次就到）。
-- **上限**：每会话内存中最多 100 条，超出丢最旧的。
+- **上限**：每会话内存中最多 500 条，超出丢最旧的。
 - **localStorage 持久化**（可选增强 v2）：按 sessionId 缓存，刷新页面后不用重新分页拉取。v1 先不做，保证正确性优先。
 - **纯逻辑**：`push / advance / retreat / exit / reset` 全是 `(state, action) => state` 的纯函数，不碰 DOM——这是为了第 7 节的单测好写。
 
@@ -190,7 +190,7 @@ interface HistoryState {
 
 | 时机 | 来源 | 说明 |
 |---|---|---|
-| 会话打开 | `session` remote（`@deepseek-ai/dsh-api-session-controller` 客户端命名空间）的历史分页接口 | 从最新往旧拉 user 消息，拉到 100 条或拉完为止 |
+| 会话打开 | `session` remote（`@deepseek-ai/dsh-api-session-controller` 客户端命名空间）的历史分页接口 | 从最新往旧拉 user 消息，拉到 500 条或拉完为止 |
 | 运行中新增 | 监听 `useConversation` 快照里新出现的 durable user 消息 | transcript 里权威消息到达即追加；这天然排除发送失败、本地回显等临时状态 |
 | 会话切换 | `sessionOf(actx)` 变化时 `reset()` | 每个会话有独立的历史栈 |
 
@@ -409,7 +409,7 @@ describe('shouldInterceptArrowUp', () => {
 |---|---|
 | 官方未来给 composer 自带 ↑ 历史 | 插件是独立包，直接卸载即可（`dsh plugin --profile web remove ...`），零残留 |
 | `menuOpen` 信号拿不准 | 保守策略：宁可让位不拦截（4.1 节），最坏情况是功能偶尔不触发，绝不是输入被吃掉 |
-| 超长会话历史拉取慢 | 只拉最近 100 条；localStorage 缓存（v2）后基本零请求 |
+| 超长会话历史拉取慢 | 只拉最近 500 条；localStorage 缓存（v2）后基本零请求 |
 | setDraft 与用户打字的竞态 | 每次按键处理后重读最新 `draftRev`；browsing 状态下任何真实编辑动作立即退出翻页 |
 | Windows / macOS 键盘差异（如 Option+↑） | 只拦截**裸** ↑/↓（无修饰键），带修饰键的一律放行 |
 
