@@ -74,7 +74,7 @@ async function hostRead(sid) {
 async function hostWrite(sid, entries) {
   if (!validSid(sid)) return;
   try {
-    await transport.write(sid, JSON.stringify(entries.slice(0, 10000)));
+    await transport.write(sid, JSON.stringify(entries.slice(0, 100))) // 设计稿 §185 每会话上限 100（与 store.MAX_ENTRIES 对齐）;
   } catch { /* best effort */ }
 }
 

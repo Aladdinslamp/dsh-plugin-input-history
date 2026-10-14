@@ -73,3 +73,16 @@ test('parseEntriesBody 接受数组或 {entries} 包装，其余拒绝', () => {
   assert.equal(parseEntriesBody('not json'), null);
   assert.equal(parseEntriesBody('{"foo":1}'), null);
 });
+
+test('writeSharedHistory 宿主兜底：超过一百条的栈截到一百（2026-10-14 用户实测 2146 条，设计稿 §185 每会话上限 100）', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-ih-'));
+  const sid = 'session-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  await mkdir(join(root, '--E-prog-demo--', sid), { recursive: true });
+  const big = []; // 真实调用方语义：最新在前
+  for (let i = 0; i < 250; i++) big.push({ text: '行' + (249 - i), seq: 249 - i });
+  await writeSharedHistory(root, sid, big);
+  const raw = JSON.parse(await readFile(join(root, '--E-prog-demo--', sid, HISTORY_FILENAME), 'utf8'));
+  assert.equal(raw.length, 100, '落盘即一百条');
+  assert.equal(raw[0].text, '行249', '最新在前');
+  assert.equal(raw[99].text, '行150', '最旧被丢');
+});
