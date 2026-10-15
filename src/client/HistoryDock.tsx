@@ -53,8 +53,12 @@ export function HistoryDock(props: HistoryDockProps) {
     // Cross-device sync: merge the shared session-workspace stack into the
     // local one (union by text, newer seq wins). Local stays authoritative
     // until the pull lands; pull failures leave everything untouched.
+    // 2026-10-15: pull used to run once per mount, so a page left open never
+    // saw entries sent from another device ("最后一条出不来"). Now we also
+    // re-pull on a slow timer and whenever the tab regains visibility/focus —
+    // merge is a union, so redundant pulls are cheap no-ops.
     let alive = true;
-    pullShared(sessionId).then((remoteEntries) => {
+    const pull = () => pullShared(sessionId).then((remoteEntries) => {
       if (!alive || !remoteEntries || remoteEntries.length === 0) return;
       setStore((s) => {
         const next = mergeEntries(s, remoteEntries);
@@ -62,7 +66,20 @@ export function HistoryDock(props: HistoryDockProps) {
         return next;
       });
     }).catch(() => { /* service unavailable — local-only mode */ });
-    return () => { alive = false; };
+    pull();
+    const PULL_INTERVAL_MS = 15000; // slow heartbeat; merge makes it idempotent
+    const timer = window.setInterval(pull, PULL_INTERVAL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') pull();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
   }, [sessionId]);
 
   // Capture submit gestures: plain Enter inside the composer, or a
