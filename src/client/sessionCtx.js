@@ -65,30 +65,9 @@ export function loadSessionHistory(sessionId, inject) {
     saveSessionHistory(sessionId, entries, undefined, inject);
     if (legacyRaw !== null) { try { ls.removeItem(LEGACY_PREFIX + sessionId); } catch { /* ignore */ } }
   }
-  if (entries.length === 0) {
-    // Recovery fallback: a server restart can hand this conversation a new
-    // sessionId, orphaning the old history key. Scan every local history key
-    // (ctx + legacy) and merge their entries into this session once, newest
-    // first. Never deletes the source keys — other devices/sessions that
-    // still map to them keep working.
-    const merged = new Map();
-    let newestSeq = 0;
-    for (const k of lsKeys(ls)) {
-      if (!k.startsWith(PREFIX) || k === PREFIX + sessionId) {
-        if (!k.startsWith(LEGACY_PREFIX)) continue;
-      }
-      const list = parseEntries(ls.getItem(k) ?? '');
-      if (!list) continue;
-      for (const e of list) {
-        if (!merged.has(e.text)) merged.set(e.text, e);
-        if (typeof e.seq === 'number' && e.seq > newestSeq) newestSeq = e.seq;
-      }
-    }
-    if (merged.size > 0) {
-      entries = [...merged.values()].sort((a, b) => (b.seq ?? 0) - (a.seq ?? 0)).slice(0, MAX_ENTRIES);
-      saveSessionHistory(sessionId, entries, undefined, inject);
-    }
-  }
+  // 2026-10-16 移除跨会话恢复兜底：新会话（本地无该 sessionId 的 key）会把
+  // localStorage 里所有工作区/所有会话的历史合并进来，导致"一新建就 500 条"。
+  // 历史严格按 sessionId 存取；服务器重启换 id 导致的孤儿历史不再自动找回。
   memory.set(sessionId, entries);
   return entries;
 }

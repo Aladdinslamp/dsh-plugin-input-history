@@ -64,26 +64,13 @@ test('corrupted ctx payloads parse as empty, not throw', () => {
 });
 
 
-test('recovery fallback: entries from orphaned keys resurface in a fresh session', () => {
+test('no cross-session bleed: a fresh session starts empty even when other sessions have history', () => {
   const ls = fakeLS();
   ls.setItem('dsh-input-history:ctx:old-session', JSON.stringify({ entries: [{ text: 'remembered', seq: 9 }], t: 1 }));
   const entries = loadSessionHistory('brand-new-session', ls);
-  assert.deepEqual(entries.map((e) => e.text), ['remembered']);
-  assert.ok(JSON.parse(ls.getItem('dsh-input-history:ctx:brand-new-session')).entries.length === 1);
-});
-
-test('recovery fallback never deletes the source keys', () => {
-  const ls = fakeLS();
-  ls.setItem('dsh-input-history:ctx:old-session', JSON.stringify({ entries: [{ text: 'kept', seq: 1 }], t: 1 }));
-  ls.setItem('dsh-input-history:legacy-flat', JSON.stringify([{ text: 'legacy', seq: 2 }]));
-  loadSessionHistory('fresh', ls);
-  assert.ok(ls.getItem('dsh-input-history:ctx:old-session') !== null);
-  assert.ok(ls.getItem('dsh-input-history:legacy-flat') !== null);
-});
-
-test('recovery fallback: legacy flat-array keys are merged too', () => {
-  const ls = fakeLS();
-  ls.setItem('dsh-input-history:flat-legacy', JSON.stringify([{ text: 'a', seq: 1 }, { text: 'b', seq: 2 }]));
-  const entries = loadSessionHistory('target', ls);
-  assert.deepEqual(entries.map((e) => e.text), ['b', 'a']);
+  assert.deepEqual(entries, []); // 2026-10-16: 移除跨会话合并兜底，严格按 sessionId 存取
+  const fresh = JSON.parse(ls.getItem('dsh-input-history:ctx:brand-new-session'));
+  assert.deepEqual(fresh.entries, []); // 空迁移可接受，绝不携带其它会话内容
+  // 旧会话自己的数据不受影响
+  assert.deepEqual(JSON.parse(ls.getItem('dsh-input-history:ctx:old-session')).entries, [{ text: 'remembered', seq: 9 }]);
 });
